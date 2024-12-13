@@ -1,0 +1,68 @@
+%
+% Festo.mcrl2
+%
+% This specification models the Festo installation at the HS E/L.
+%
+% Copyright (c) 2024-2024 HS Emden-Leer
+% All Rights Reserved.
+%
+% @version 1.00 - 21 Oct 2024 - GJV - lecture version 21 Oct 2024 
+%
+
+% -----------------------------------------------------------------------------------------------------------------------
+%
+% Definition of a workpiece
+%
+
+% the colour of the pieces
+sort Colour = struct red | silver | black;
+
+% orientation of a piece (up is the correct position)
+sort Orientation = struct up | down;
+
+% definition of a workpiece
+sort WorkPiece = struct workpiece(id: Int, colour: Colour, orientation: Orientation);
+
+
+map
+	wp1, wp2: WorkPiece;
+
+eqn
+	wp1 = workpiece(1, red, up);
+    wp2 = workpiece(2, silver, down);
+
+% -----------------------------------------------------------------------------------------------------------------------
+%
+% Definition of a conveyor belt
+% The conveyor belt will be modelled as a series of cells attached to each other.
+%
+
+% an individual cell on the conveyor belt
+sort CBCell = struct cbcell(workpiece: WorkPiece) | emptyCBC; 
+
+sort ConveyorBelt = List(CBCell);
+
+map
+	cb1, cb2: ConveyorBelt;
+
+eqn
+	cb1 = [emptyCBC, cbcell(wp1), emptyCBC];
+	cb2 = [cbcell(wp1), emptyCBC, emptyCBC];
+
+% moving the conveyor belt
+map
+	moveForward: ConveyorBelt -> ConveyorBelt;
+	moveBackward: ConveyorBelt -> ConveyorBelt;
+    insertFront: WorkPiece # ConveyorBelt -> ConveyorBelt;
+    insertBack: WorkPiece # ConveyorBelt -> ConveyorBelt;
+
+var
+    cb: ConveyorBelt;
+	cbc: CBCell;
+    wp: WorkPiece;
+
+eqn
+	moveForward(cb) = emptyCBC |> rtail(cb);
+    moveBackward(cb) = tail(cb) <| emptyCBC;
+    insertFront(wp, cb) = if(head(cb) == emptyCBC, cbcell(wp) |> tail(cb), cb);
+    insertBack(wp, cb) = if(rhead(cb) == emptyCBC, rtail(cb), cb) <| cbcell(wp);

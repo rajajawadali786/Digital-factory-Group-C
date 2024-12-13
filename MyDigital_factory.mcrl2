@@ -1,0 +1,99 @@
+sort
+    % States for the modules
+    ModuleState = struct Idle | Busy;
+
+    % States for tracking process completion
+    ProcessState = struct MillingDone | EngravingDone | InProgress;
+
+    % Robot's positions
+    Position = struct pos1 | pos2 | pos3 | pos4 | pos5 | pos6 | pos7;
+
+    % Workpiece identifiers
+    Workpiece = struct wp1 | wp2; % Supports multiple workpieces
+
+map
+    % Check if a module is free
+    isModuleFree: ModuleState -> Bool;
+
+    % Transition the module's state
+    nextModuleState: ModuleState -> ModuleState;
+
+    % Transition the robot's position
+    nextPosition: Position -> Position;
+
+var
+    msMilling: ModuleState;   % Current state of the Milling module
+    msEngraving: ModuleState; % Current state of the Engraving module
+    psMilling: ProcessState;  % Process state for Milling
+    psEngraving: ProcessState; % Process state for Engraving
+    wp: Workpiece;            % Current workpiece
+    rp: Position;             % Current robot position
+
+eqn
+    % Define when a module is free (Idle)
+    isModuleFree(Idle) = true;
+    isModuleFree(Busy) = false;
+
+    % Module state transitions
+    nextModuleState(Idle) = Busy;  % Transition from Idle to Busy
+    nextModuleState(Busy) = Idle; % Transition from Busy to Idle
+
+    % Robot position transitions
+    nextPosition(pos1) = pos2; % Move to position 2 (Milling Load)
+    nextPosition(pos2) = pos3; % Move to position 3 (Milling in progress)
+    nextPosition(pos3) = pos4; % Move to position 4 (Milling Unload)
+    nextPosition(pos4) = pos5; % Move to position 5 (Engraving Load)
+    nextPosition(pos5) = pos6; % Move to position 6 (Engraving in progress)
+    nextPosition(pos6) = pos7; % Move to position 7 (Engraving Unload)
+    nextPosition(pos7) = pos1; % Return to position 1 (Base)
+
+act
+    % Robot actions
+    RobotMove: Position;           % Action to move the robot
+    Check: ModuleState;            % Action to check if a module is free
+    Pick: Workpiece;               % Action to pick up a workpiece
+    Place: Workpiece;              % Action to place a workpiece
+    MillingComplete: Workpiece;    % Action signaling Milling is complete
+    EngravingComplete: Workpiece;  % Action signaling Engraving is complete
+	UpdateMillingState: ModuleState; % Action to update the Milling module state
+    UpdateEngravingState: ModuleState; % Action to update the Engraving module state
+proc
+    % Process to handle Milling
+    MillingProcess(wp: Workpiece, msMilling: ModuleState) = 
+        Check(msMilling) . 
+        (isModuleFree(msMilling) -> 
+            Pick(wp) . 
+            RobotMove(pos2) . % Move to Milling Load
+            Place(wp) . 
+            RobotMove(pos3) . % Move to Milling In Progress
+            UpdateMillingState(Busy) . % Mark module as Busy
+            MillingComplete(wp) . 
+            UpdateMillingState(Idle) . % Mark module as Idle after completion
+            RobotMove(pos4) . % Move to Milling Unload
+            delta
+        );
+
+    % Process to handle Engraving
+    EngravingProcess(wp: Workpiece, msEngraving: ModuleState) = 
+        Check(msEngraving) . 
+        (isModuleFree(msEngraving) -> 
+            Pick(wp) . 
+            RobotMove(pos5) . % Move to Engraving Load
+            Place(wp) . 
+            RobotMove(pos6) . % Move to Engraving In Progress
+            UpdateEngravingState(Busy) . % Mark module as Busy
+            EngravingComplete(wp) . 
+            UpdateEngravingState(Idle) . % Mark module as Idle after completion
+            RobotMove(pos7) . % Move to Engraving Unload
+            delta
+        );
+
+    % Main workflow combining Milling and Engraving
+    MainProcess(wp: Workpiece, msMilling: ModuleState, msEngraving: ModuleState) = 
+        MillingProcess(wp, msMilling) . 
+        EngravingProcess(wp, msEngraving) . 
+        RobotMove(pos1) . % Return to base position
+        delta;
+
+init
+    MainProcess(wp1, Idle, Idle); % Start with the first workpiece and both modules Idle
